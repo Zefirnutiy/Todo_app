@@ -55,8 +55,6 @@ func isUserExist(email string) bool {
 	return true
 }
 
-// мне не нравится такая архитектура, поэтому перепродумать ее нужно
-// добавить создание дефолтного спика для добавления туда задач
 func CreateUser(user User) error {
 
 	if isUserExist(user.Email) {
@@ -75,11 +73,12 @@ func DeleteUser(id int) error {
 	return err
 }
 
-func IsValidUserLogin(user UserLogin) error {
+func IsValidUserLogin(user UserLogin) ( int, error ) {
+	var id int
 
-	_, err := conn.Exec(context.Background(), "SELECT id FROM public.user WHERE email=$1 AND password=$2", user.Email, user.Password)
+	err := conn.QueryRow(context.Background(), "SELECT id FROM public.user WHERE email=$1 AND password=$2", user.Email, user.Password).Scan(&id)
 
-	return err
+	return id, err
 }
 
 
@@ -87,7 +86,7 @@ func IsValidUserLogin(user UserLogin) error {
 func GetTodoById(id int) (Todo, error) {
 	var todo Todo
 
-	err := conn.QueryRow(context.Background(), "SELECT * FROM public.todo").Scan(&todo.Id, &todo.IsReady, &todo.ListId, &todo.Description, &todo.Title)
+	err := conn.QueryRow(context.Background(), "SELECT * FROM public.todo").Scan(&todo.Id, &todo.Title, &todo.Description, &todo.IsReady, &todo.ListId)
 
 	return todo, err
 }

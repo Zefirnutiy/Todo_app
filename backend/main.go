@@ -5,17 +5,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"strings"
 )
 
 func main() {
-
 	if err := godotenv.Load(); err != nil {
 		panic(err.Error())
 	}
 
-	err := PostgresConnect()
-
-	if err != nil {
+	if err := PostgresConnect(); err != nil {
 		panic(err.Error())
 	}
 
@@ -24,7 +22,7 @@ func main() {
 	user := router.Group("/user")
 	{
 		user.GET("/", getAllUsers)
-		user.DELETE("/delete/:id", deleteUser)
+		user.DELETE("/delete", deleteUser)
 
 	}
 
@@ -36,21 +34,20 @@ func main() {
 
 	todo := router.Group("/todo")
 	{
-		todo.GET("/:todoId", getTodoByTodoId)
-		todo.GET("/list/:id", getTodosByListId)
-		todo.POST("/create", createTodo)
-		todo.DELETE("/delete/:todoId", deleteTodo)
-		todo.PUT("/update", updateTodo)
+		todo.GET("/:id", CheckToken, getTodoByTodoId)
+	 	todo.GET("/list/:id", CheckToken, getTodosByListId)
+		todo.POST("/create", CheckToken, createTodo)
+		todo.DELETE("/delete/:id", CheckToken, deleteTodo)
+		todo.PUT("/update", CheckToken, updateTodo)
 
 	}
 
 	list := router.Group("/list")
 	{
-		//это следует изменить на получение айдишки через json
-		list.GET("/:userId", getAllLists)
-		list.POST("/create", createList)
-		list.DELETE("/delete/:listId", deleteList)
-		list.PUT("/update", updateList)
+		list.GET("/", CheckToken, getAllLists)
+		list.POST("/create", CheckToken, createList)
+		list.DELETE("/delete/:id", CheckToken, deleteList)
+		list.PUT("/update", CheckToken, updateList)
 
 	}
 
@@ -71,12 +68,17 @@ func getAllUsers(ctx *gin.Context) {
 
 	return
 }
+
 func deleteUser(ctx *gin.Context) {
-	userId := ctx.Param("id")
+	var userId ID
 
-	err := DeleteUser(StringToInt(userId))
+	if err := ctx.BindJSON(&userId); err != nil {
+		ctx.JSON(http.StatusBadRequest, nil)
+		return
+	}
 
-	if err != nil {
+
+	if err := DeleteUser(userId.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -105,7 +107,7 @@ func signUp(ctx *gin.Context){
 	ctx.JSON(http.StatusOK, user)
 	return
 }
-//нужно будет генерровать токен
+
 func signIn(ctx *gin.Context){
 	var userLogin UserLogin
 	
@@ -114,20 +116,31 @@ func signIn(ctx *gin.Context){
 		return
 	}
 
-	if err := IsValidUserLogin(userLogin); err != nil {
+	id, err := IsValidUserLogin(userLogin)
+	
+	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	var token string
+	token, err = GenerateToken(id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message":"you're has been logined",
+		"token":token,
 	})
 	return
 }
 
 
 func getTodoByTodoId( ctx *gin.Context){
-	todoId := ctx.Param("todoId")
+	todoId := ctx.Param("id")
+
 
 	todo, err := GetTodoById(StringToInt(todoId))
 	
@@ -145,9 +158,10 @@ func getTodoByTodoId( ctx *gin.Context){
 }
 
 func getTodosByListId( ctx *gin.Context){
-	listId := ctx.Param("id")
-	
-	data, err := GetTodosByListId(StringToInt(listId))
+	todoListId := ctx.Param("id")
+
+
+	data, err := GetTodosByListId(StringToInt(todoListId))
 	
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, err.Error())
@@ -181,8 +195,8 @@ func createTodo(ctx *gin.Context){
 }
 	
 func deleteTodo(ctx *gin.Context){
-	todoId := ctx.Param("todoId")
-	
+	todoId := ctx.Param("id")
+
 	if err := DeleteTodo(StringToInt(todoId)); err != nil {
 		ctx.JSON(http.StatusInternalServerError, nil)
 		return
@@ -254,7 +268,7 @@ func updateList(ctx *gin.Context){
 }
 
 func deleteList(ctx *gin.Context){
-	listId := ctx.Param("listId")
+	listId := ctx.Param("id")
 	
 	if err := DeleteList(StringToInt(listId)); err != nil {
 		ctx.JSON(http.StatusInternalServerError, nil)
@@ -269,10 +283,18 @@ func deleteList(ctx *gin.Context){
 }
 	
 func getAllLists(ctx *gin.Context){
-	//нужно продумать получение айдишки пользователя
-	userId := ctx.Param("userId")
+	
+	
+	authHeader := ctx.Request.Header["Authorization"][0]
+	token := strings.Split(authHeader, " ")[1]
 
-	todoLists, err := GetAllLists(StringToInt(userId))
+	userId, err := ParseToken(token)
+	if err != nil  || userId == nil{
+		ctx.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	todoLists, err := GetAllLists(*userId)
 
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, err.Error())

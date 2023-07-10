@@ -1,5 +1,7 @@
 package main
 
+import "github.com/golang-jwt/jwt/v5"
+
 
 type User struct {
 	Id 			int    `json:"id"`
@@ -33,4 +35,13 @@ type TodoUpdate struct {
 	Description 	*string	`json:"description"`
 	IsReady 		*bool	`json:"isReady"`
 	ListId 			*int	`json:"listId"`
+}
+
+type ID struct {
+	ID			int `json:"id"`
+}
+
+type MyCustomClaim struct {
+	UserId int `json:"userId"`
+	jwt.RegisteredClaims
 }
