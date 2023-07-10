@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -20,7 +21,7 @@ func GenerateToken(id int) ( string,  error) {
 		},
 	}
 
-	mySignedKey := []byte("Heroin_my_love5&34()")
+	mySignedKey := []byte(os.Getenv("JWT_SECRET_KEY"))
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,claims)
 	ss, err := token.SignedString(mySignedKey)
@@ -35,7 +36,7 @@ func GenerateToken(id int) ( string,  error) {
 func ParseToken(tokenStr string) (*int, error) {
 	
 	token, err := jwt.ParseWithClaims(tokenStr, &MyCustomClaim{}, func(t *jwt.Token) (interface{}, error){
-		return []byte("Heroin_my_love5&34()"), nil
+		return []byte(os.Getenv("JWT_SECRET_KEY")), nil
 	})
 
 	if err != nil {
